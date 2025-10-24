@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import { Heart, Calendar as CalendarIcon, Settings as SettingsIcon } from "lucide-react";
 import { ChatInterface } from "@/components/chat-interface";
 import { VoiceControls } from "@/components/voice-controls";
@@ -15,7 +17,6 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [showSettings, setShowSettings] = useState(false);
   const [showBanner, setShowBanner] = useState(true);
-  const [isLoadingResponse, setIsLoadingResponse] = useState(false);
   const [settings, setSettings] = useState<LocalSettings>({
     tone: 'friendly',
     autoVoice: false,
@@ -24,6 +25,49 @@ export default function Home() {
     language: 'auto',
     isDarkMode: false,
   });
+  const { toast } = useToast();
+
+  const chatMutation = useMutation({
+    mutationFn: (userMessage: string) => {
+      return apiRequest('POST', '/api/chat', {
+        content: userMessage,
+        mode: currentMode,
+        tone: settings.tone,
+        conversationHistory: messages.slice(-5).map(({ role, content }) => ({ role, content }))
+      }).then(res => res.json() as Promise<{ message: Message }>);
+    },
+    onSuccess: (data, variables) => {
+      if (!data || !data.message) {
+        toast({ title: "Invalid response from server", variant: "destructive" });
+        // Revert the optimistic update
+        setMessages(prev => prev.slice(0, -1));
+        return;
+      }
+      // Append the assistant's response to the message list
+      setMessages(prev => [...prev, data.message]);
+    },
+    onError: () => {
+      toast({
+        title: "Failed to get response",
+        description: "Please check your API key and try again.",
+        variant: "destructive",
+      });
+      // Revert the optimistic update
+      setMessages(prev => prev.slice(0, -1));
+    },
+  });
+
+  const handleSendMessage = (text: string) => {
+    const userMsg: Message = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: text,
+      mode: currentMode,
+      timestamp: new Date(),
+    };
+    setMessages(prev => [...prev, userMsg]);
+    chatMutation.mutate(text);
+  };
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -150,7 +194,7 @@ export default function Home() {
             currentMode={currentMode}
             onMessagesChange={setMessages}
             settings={settings}
-            isLoading={isLoadingResponse}
+            isLoading={chatMutation.isPending}
           />
         </div>
 
@@ -163,12 +207,9 @@ export default function Home() {
       {/* Voice Controls at bottom */}
       <VoiceControls
         currentMode={currentMode}
-        messages={messages}
-        onMessagesChange={setMessages}
         settings={settings}
-        onModeChange={setCurrentMode}
-        isLoading={isLoadingResponse}
-        onLoadingChange={setIsLoadingResponse}
+        isLoading={chatMutation.isPending}
+        onSendMessage={handleSendMessage}
       />
 
       {/* Settings Panel */}

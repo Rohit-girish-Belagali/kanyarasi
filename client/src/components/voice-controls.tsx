@@ -9,22 +9,16 @@ import type { Message, LocalSettings } from "@shared/schema";
 
 interface VoiceControlsProps {
   currentMode: 'emotional' | 'secretary';
-  messages: Message[];
-  onMessagesChange: (messages: Message[]) => void;
   settings: LocalSettings;
-  onModeChange: (mode: 'emotional' | 'secretary') => void;
-  isLoading?: boolean;
-  onLoadingChange?: (loading: boolean) => void;
+  isLoading: boolean;
+  onSendMessage: (message: string) => void;
 }
 
 export function VoiceControls({ 
   currentMode, 
-  messages, 
-  onMessagesChange, 
   settings,
-  onModeChange,
-  isLoading = false,
-  onLoadingChange
+  isLoading,
+  onSendMessage,
 }: VoiceControlsProps) {
   const [inputText, setInputText] = useState("");
   const [isListening, setIsListening] = useState(false);
@@ -80,54 +74,6 @@ export function VoiceControls({
     };
   }, [settings.language, toast]);
 
-  const chatMutation = useMutation({
-    mutationFn: async (userMessage: string) => {
-      onLoadingChange?.(true);
-      const response = await apiRequest<{ message: Message; detectedMode?: string }>(
-        'POST',
-        '/api/chat',
-        {
-          content: userMessage,
-          mode: currentMode,
-          tone: settings.tone,
-        }
-      );
-      return response;
-    },
-    onSuccess: (data) => {
-      const userMsg: Message = {
-        id: `user-${Date.now()}`,
-        role: 'user',
-        content: inputText,
-        mode: currentMode,
-        timestamp: new Date(),
-      };
-
-      const newMessages = [...messages, userMsg, data.message];
-      onMessagesChange(newMessages);
-      setInputText("");
-      onLoadingChange?.(false);
-
-      // Auto-detect mode switching
-      if (data.detectedMode && data.detectedMode !== currentMode) {
-        onModeChange(data.detectedMode as 'emotional' | 'secretary');
-      }
-
-      // Auto-speak if enabled
-      if (settings.autoVoice && synthRef.current) {
-        speakText(data.message.content);
-      }
-    },
-    onError: (error) => {
-      console.error('Chat error:', error);
-      onLoadingChange?.(false);
-      toast({
-        title: "Failed to send message",
-        description: "Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
 
   const toggleListening = () => {
     if (!recognitionRef.current) {
@@ -162,8 +108,11 @@ export function VoiceControls({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim() || chatMutation.isPending) return;
-    chatMutation.mutate(inputText);
+    const trimmedInput = inputText.trim();
+    if (!trimmedInput || isLoading) return;
+
+    onSendMessage(trimmedInput);
+    setInputText("");
   };
 
   return (
@@ -194,7 +143,7 @@ export function VoiceControls({
               onChange={(e) => setInputText(e.target.value)}
               placeholder="Type a message or press the mic..."
               className="h-12 rounded-full px-6 pr-24"
-              disabled={chatMutation.isPending || isListening}
+              disabled={isLoading || isListening}
               data-testid="input-message"
             />
             
@@ -204,7 +153,7 @@ export function VoiceControls({
               variant={isListening ? "default" : "ghost"}
               onClick={toggleListening}
               className="absolute right-14 w-10 h-10 rounded-full"
-              disabled={chatMutation.isPending}
+              disabled={isLoading}
               data-testid="button-voice"
             >
               {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
@@ -215,7 +164,7 @@ export function VoiceControls({
               size="icon"
               variant="default"
               className="absolute right-2 w-10 h-10 rounded-full"
-              disabled={!inputText.trim() || chatMutation.isPending || isListening}
+              disabled={!inputText.trim() || isLoading || isListening}
               data-testid="button-send"
             >
               <Send className="w-4 h-4" />

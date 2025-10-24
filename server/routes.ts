@@ -50,12 +50,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         content: msg.content,
       }));
 
+      // Get calendar events for context
+      const calendarEvents = await storage.getCalendarEvents();
+
       // Generate AI response
       const response = await generateChatResponse({
         content,
         mode,
         tone,
         conversationHistory: recentMessages,
+        calendarEvents,
       });
 
       // Save AI response to storage
@@ -111,10 +115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       
       // Validate update data - only allow specific fields
-      const updateSchema = insertCalendarEventSchema.partial().omit({ 
-        id: true,
-        createdAt: true 
-      });
+      const updateSchema = insertCalendarEventSchema.partial();
       
       const validationResult = updateSchema.safeParse(req.body);
       

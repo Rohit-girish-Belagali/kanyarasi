@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, isToday, isTomorrow } from "date-fns";
@@ -12,7 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { insertCalendarEventSchema, type CalendarEvent } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
+import { insertCalendarEventSchema, type CalendarEvent, type InsertCalendarEvent } from "@shared/schema";
 import { z } from "zod";
 
 interface CalendarSidebarProps {
@@ -36,10 +38,15 @@ type EventFormValues = {
 };
 
 export function CalendarSidebar({ currentMode }: CalendarSidebarProps) {
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const { toast } = useToast();
+
+  const { data: events = [], isLoading } = useQuery<CalendarEvent[]>({ 
+    queryKey: ['calendarEvents'],
+    queryFn: () => apiRequest('GET', '/api/calendar').then(res => res.json()),
+  });
 
   const form = useForm<EventFormValues>({
     resolver: zodResolver(z.object({
@@ -60,22 +67,6 @@ export function CalendarSidebar({ currentMode }: CalendarSidebarProps) {
     },
   });
 
-  // Load from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('moodai-calendar');
-    if (saved) {
-      try {
-        setEvents(JSON.parse(saved));
-      } catch (e) {
-        console.error('Failed to load calendar:', e);
-      }
-    }
-  }, []);
-
-  // Save to localStorage
-  useEffect(() => {
-    localStorage.setItem('moodai-calendar', JSON.stringify(events));
-  }, [events]);
 
   const handleAddEvent = () => {
     setEditingEvent(null);
@@ -103,49 +94,61 @@ export function CalendarSidebar({ currentMode }: CalendarSidebarProps) {
     setShowDialog(true);
   };
 
+  const deleteMutation = useMutation({
+    mutationFn: (eventId: string) => apiRequest('DELETE', `/api/calendar/${eventId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendarEvents'] });
+      toast({ title: "Event deleted" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete event", variant: "destructive" });
+    }
+  });
+
   const handleDeleteEvent = (eventId: string) => {
-    setEvents(events.filter(e => e.id !== eventId));
-    toast({
-      title: "Event deleted",
-      description: "The event has been removed from your calendar.",
-    });
+    deleteMutation.mutate(eventId);
   };
+
+  const eventMutation = useMutation({
+    mutationFn: (eventData: InsertCalendarEvent) => {
+      const url = editingEvent ? `/api/calendar/${editingEvent.id}` : '/api/calendar';
+      const method = editingEvent ? 'PATCH' : 'POST';
+      return apiRequest(method, url, eventData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendarEvents'] });
+      setShowDialog(false);
+      form.reset();
+      toast({ title: editingEvent ? "Event updated" : "Event added" });
+    },
+    onError: () => {
+      toast({ title: "Failed to save event", variant: "destructive" });
+    }
+  });
 
   const onSubmit = (values: EventFormValues) => {
-    const eventData: CalendarEvent = {
-      id: editingEvent?.id || `event-${Date.now()}`,
+    const eventData = {
       title: values.title,
-      description: values.description,
+      description: values.description || null,
       startTime: new Date(values.startTime),
-      endTime: values.endTime ? new Date(values.endTime) : undefined,
+      endTime: values.endTime ? new Date(values.endTime) : null,
       priority: values.priority as 'low' | 'medium' | 'high',
-      category: values.category || undefined,
-      completed: editingEvent?.completed || false,
-      createdAt: editingEvent?.createdAt || new Date(),
+      category: values.category || null,
     };
-
-    if (editingEvent) {
-      setEvents(events.map(e => e.id === editingEvent.id ? eventData : e));
-      toast({
-        title: "Event updated",
-        description: "Your event has been updated successfully.",
-      });
-    } else {
-      setEvents([...events, eventData]);
-      toast({
-        title: "Event added",
-        description: "New event has been added to your calendar.",
-      });
-    }
-
-    setShowDialog(false);
-    form.reset();
+    
+    eventMutation.mutate(eventData);
   };
 
-  const toggleComplete = (eventId: string) => {
-    setEvents(events.map(e => 
-      e.id === eventId ? { ...e, completed: !e.completed } : e
-    ));
+  const toggleCompleteMutation = useMutation({
+    mutationFn: (event: CalendarEvent) => 
+      apiRequest('PATCH', `/api/calendar/${event.id}`, { completed: !event.completed }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendarEvents'] });
+    },
+  });
+
+  const toggleComplete = (event: CalendarEvent) => {
+    toggleCompleteMutation.mutate(event);
   };
 
   const getTimeLabel = (event: CalendarEvent) => {
@@ -210,7 +213,7 @@ export function CalendarSidebar({ currentMode }: CalendarSidebarProps) {
                     <input
                       type="checkbox"
                       checked={event.completed}
-                      onChange={() => toggleComplete(event.id)}
+                      onChange={() => toggleComplete(event)}
                       className="mt-1 w-4 h-4 cursor-pointer"
                       data-testid={`checkbox-complete-${event.id}`}
                     />

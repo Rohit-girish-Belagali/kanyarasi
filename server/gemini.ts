@@ -5,11 +5,14 @@ import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
+import type { CalendarEvent } from "@shared/schema";
+
 interface ChatOptions {
   content: string;
   mode: 'emotional' | 'secretary';
   tone: 'friendly' | 'motivational' | 'formal' | 'neutral';
   conversationHistory?: Array<{ role: string; content: string }>;
+  calendarEvents?: CalendarEvent[];
 }
 
 interface ChatResponse {
@@ -18,10 +21,10 @@ interface ChatResponse {
 }
 
 export async function generateChatResponse(options: ChatOptions): Promise<ChatResponse> {
-  const { content, mode, tone, conversationHistory = [] } = options;
+  const { content, mode, tone, conversationHistory = [], calendarEvents = [] } = options;
 
   // Build system instruction based on mode and tone
-  const systemInstruction = buildSystemInstruction(mode, tone);
+  const systemInstruction = buildSystemInstruction(mode, tone, calendarEvents);
 
   // Detect if we should switch modes based on user input
   const detectedMode = detectModeFromContent(content);
@@ -53,7 +56,6 @@ export async function generateChatResponse(options: ChatOptions): Promise<ChatRe
 
     return {
       message: messageText,
-      detectedMode: detectedMode !== mode ? detectedMode : undefined,
     };
   } catch (error) {
     console.error('Gemini API error:', error);
@@ -63,7 +65,8 @@ export async function generateChatResponse(options: ChatOptions): Promise<ChatRe
 
 function buildSystemInstruction(
   mode: 'emotional' | 'secretary',
-  tone: 'friendly' | 'motivational' | 'formal' | 'neutral'
+  tone: 'friendly' | 'motivational' | 'formal' | 'neutral',
+  calendarEvents: CalendarEvent[]
 ): string {
   const baseInstructions = `You are Mood.ai — an intelligent multilingual emotional companion and productivity assistant that interacts naturally through both voice and text.
 
@@ -83,7 +86,7 @@ End every message with a natural conversational cue or question that encourages 
     emotional: `EMOTIONAL SUPPORT MODE:
 Be a warm, empathetic friend who listens and provides emotional comfort.
 Respond gently, validating the user's feelings, and use encouraging, optimistic language.
-If the user expresses sadness, anxiety, or stress, focus on reassurance and simple coping ideas like journaling, deep breathing, or reaching out to loved ones.
+If the user expresses sadness, anxiety, or stress, focus on reassurance and simple cope ideas like journaling, deep breathing, or reaching out to loved ones.
 Avoid medical or psychiatric advice.
 Always end responses with a comforting or supportive follow-up question.`,
     secretary: `SECRETARY MODE:
@@ -95,17 +98,15 @@ When discussing plans, clearly mention the time, duration, and priority of tasks
 Offer to add tasks to their calendar when they mention goals or objectives.`,
   };
 
-  return `${baseInstructions}
+  const calendarContext = calendarEvents.length > 0
+    ? `\n\nCURRENT CALENDAR:\n${calendarEvents.map(e => `- ${e.title} at ${new Date(e.startTime).toLocaleString()}`).join('\n')}`
+    : '';
 
-${toneInstructions[tone]}
-
-${modeInstructions[mode]}`;
+  return `${baseInstructions}\n\n${toneInstructions[tone]}\n\n${modeInstructions[mode]}${calendarContext}`;
 }
 
 function detectModeFromContent(content: string): 'emotional' | 'secretary' {
   const lowerContent = content.toLowerCase();
-
-  // Keywords that suggest secretary/productivity mode
   const productivityKeywords = [
     'schedule', 'calendar', 'task', 'meeting', 'deadline', 'plan', 'organize',
     'remind', 'appointment', 'event', 'goal', 'work', 'productivity',

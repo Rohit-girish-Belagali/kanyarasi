@@ -12,7 +12,9 @@ export const messages = pgTable("messages", {
   timestamp: timestamp("timestamp").notNull().defaultNow(),
 });
 
-export const insertMessageSchema = createInsertSchema(messages).omit({
+export const insertMessageSchema = createInsertSchema(messages, {
+  mode: z.enum(['emotional', 'secretary']),
+}).omit({
   id: true,
   timestamp: true,
 });
