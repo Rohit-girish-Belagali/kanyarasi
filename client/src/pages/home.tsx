@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useState, useEffect, useRef } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Heart, Calendar as CalendarIcon, Settings as SettingsIcon } from "lucide-react";
+import { Heart, Calendar as CalendarIcon, Settings as SettingsIcon, PlusSquare } from "lucide-react";
 import { ChatInterface } from "@/components/chat-interface";
 import { VoiceControls } from "@/components/voice-controls";
 import { ModeToggle } from "@/components/mode-toggle";
@@ -14,9 +14,10 @@ import type { Message, CalendarEvent, LocalSettings } from "@shared/schema";
 
 export default function Home() {
   const [currentMode, setCurrentMode] = useState<'emotional' | 'secretary'>('emotional');
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<{[key: string]: Message[]}>({ emotional: [], secretary: [] });
   const [showSettings, setShowSettings] = useState(false);
   const [showBanner, setShowBanner] = useState(true);
+  const [isVoiceMode, setIsVoiceMode] = useState(false);
   const [settings, setSettings] = useState<LocalSettings>({
     tone: 'friendly',
     autoVoice: false,
@@ -26,6 +27,8 @@ export default function Home() {
     isDarkMode: false,
   });
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const voiceControlsRef = useRef<{ speakText: (text: string) => void }>(null);
 
   const chatMutation = useMutation({
     mutationFn: (userMessage: string) => {
@@ -33,18 +36,40 @@ export default function Home() {
         content: userMessage,
         mode: currentMode,
         tone: settings.tone,
-        conversationHistory: messages.slice(-5).map(({ role, content }) => ({ role, content }))
+        conversationHistory: (messages[currentMode] || []).slice(-5).map(({ role, content }) => ({ role, content }))
       }).then(res => res.json() as Promise<{ message: Message }>);
     },
     onSuccess: (data, variables) => {
       if (!data || !data.message) {
         toast({ title: "Invalid response from server", variant: "destructive" });
         // Revert the optimistic update
-        setMessages(prev => prev.slice(0, -1));
+        setMessages(prev => ({ ...prev, [currentMode]: prev[currentMode].slice(0, -1) }));
         return;
       }
       // Append the assistant's response to the message list
-      setMessages(prev => [...prev, data.message]);
+      setMessages(prev => ({ ...prev, [currentMode]: [...(prev[currentMode] || []), data.message] }));
+
+      // If the response indicates a calendar event was added, invalidate the query
+      if (data.message.content.toLowerCase().includes('added to your calendar')) {
+        queryClient.invalidateQueries({ queryKey: ['calendarEvents'] });
+      }
+
+      // Speak the response if auto-voice is on
+      if (voiceControlsRef.current && data.message.content) {
+        const onSpeechEnd = () => {
+          if (isVoiceMode) {
+            setIsVoiceMode(false);
+          }
+        };
+
+        if (isVoiceMode || settings.autoVoice) {
+          voiceControlsRef.current.speakText(data.message.content, onSpeechEnd);
+        } else {
+          // If voice mode is off and auto-voice is off, we still need to handle the case where we were in voice mode
+          // and need to exit it, even if we don't speak.
+          onSpeechEnd();
+        }
+      }
     },
     onError: () => {
       toast({
@@ -53,9 +78,13 @@ export default function Home() {
         variant: "destructive",
       });
       // Revert the optimistic update
-      setMessages(prev => prev.slice(0, -1));
+      setMessages(prev => ({ ...prev, [currentMode]: prev[currentMode].slice(0, -1) }));
     },
   });
+
+  const handleNewChat = () => {
+    setMessages(prev => ({ ...prev, [currentMode]: [] }));
+  };
 
   const handleSendMessage = (text: string) => {
     const userMsg: Message = {
@@ -65,23 +94,33 @@ export default function Home() {
       mode: currentMode,
       timestamp: new Date(),
     };
-    setMessages(prev => [...prev, userMsg]);
+    setMessages(prev => ({ ...prev, [currentMode]: [...(prev[currentMode] || []), userMsg] }));
     chatMutation.mutate(text);
   };
 
   // Load from localStorage on mount
   useEffect(() => {
-    const savedMessages = localStorage.getItem('moodai-messages');
+    const savedEmotionalMessages = localStorage.getItem('moodai-messages-emotional');
+    const savedSecretaryMessages = localStorage.getItem('moodai-messages-secretary');
     const savedSettings = localStorage.getItem('moodai-settings');
     const savedMode = localStorage.getItem('moodai-mode');
 
-    if (savedMessages) {
+    const newMessages: {[key: string]: Message[]} = { emotional: [], secretary: [] };
+    if (savedEmotionalMessages) {
       try {
-        setMessages(JSON.parse(savedMessages));
+        newMessages.emotional = JSON.parse(savedEmotionalMessages);
       } catch (e) {
-        console.error('Failed to load messages:', e);
+        console.error('Failed to load emotional messages:', e);
       }
     }
+    if (savedSecretaryMessages) {
+      try {
+        newMessages.secretary = JSON.parse(savedSecretaryMessages);
+      } catch (e) {
+        console.error('Failed to load secretary messages:', e);
+      }
+    }
+    setMessages(newMessages);
 
     if (savedSettings) {
       try {
@@ -103,7 +142,8 @@ export default function Home() {
 
   // Save to localStorage when data changes
   useEffect(() => {
-    localStorage.setItem('moodai-messages', JSON.stringify(messages));
+    localStorage.setItem('moodai-messages-emotional', JSON.stringify(messages.emotional));
+    localStorage.setItem('moodai-messages-secretary', JSON.stringify(messages.secretary));
   }, [messages]);
 
   useEffect(() => {
@@ -121,7 +161,6 @@ export default function Home() {
 
   const handleSettingsChange = (newSettings: Partial<LocalSettings>) => {
     setSettings(prev => ({ ...prev, ...newSettings }));
-    
     // Handle dark mode toggle
     if (newSettings.isDarkMode !== undefined) {
       if (newSettings.isDarkMode) {
@@ -130,6 +169,10 @@ export default function Home() {
         document.documentElement.classList.remove('dark');
       }
     }
+  };
+
+  const toggleVoiceMode = () => {
+    setIsVoiceMode(prev => !prev);
   };
 
   return (
@@ -141,6 +184,14 @@ export default function Home() {
         </div>
         
         <div className="flex items-center gap-4">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={handleNewChat}
+            data-testid="button-new-chat"
+          >
+            <PlusSquare className="w-5 h-5" />
+          </Button>
           <ModeToggle currentMode={currentMode} onModeChange={handleModeChange} />
           <ThemeToggle 
             isDark={settings.isDarkMode} 
@@ -190,9 +241,9 @@ export default function Home() {
         {/* Chat Area - 60% on desktop */}
         <div className="flex-1 flex flex-col lg:w-3/5 lg:border-r">
           <ChatInterface
-            messages={messages}
+            messages={messages[currentMode] || []}
             currentMode={currentMode}
-            onMessagesChange={setMessages}
+            onMessagesChange={(newMessages) => setMessages(prev => ({ ...prev, [currentMode]: newMessages }))}
             settings={settings}
             isLoading={chatMutation.isPending}
           />
@@ -206,10 +257,12 @@ export default function Home() {
 
       {/* Voice Controls at bottom */}
       <VoiceControls
+        ref={voiceControlsRef}
         currentMode={currentMode}
         settings={settings}
         isLoading={chatMutation.isPending}
         onSendMessage={handleSendMessage}
+        toggleVoiceMode={toggleVoiceMode}
       />
 
       {/* Settings Panel */}
@@ -219,6 +272,22 @@ export default function Home() {
         settings={settings}
         onSettingsChange={handleSettingsChange}
       />
+
+      {isVoiceMode && (
+        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center" onClick={() => setIsVoiceMode(false)}>
+          <div onClick={(e) => e.stopPropagation()}>
+            <VoiceControls
+              ref={voiceControlsRef}
+              currentMode={currentMode}
+              settings={settings}
+              isLoading={chatMutation.isPending}
+              onSendMessage={handleSendMessage}
+              isVoiceMode={true}
+              toggleVoiceMode={() => setIsVoiceMode(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

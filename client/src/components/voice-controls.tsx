@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Mic, MicOff, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,14 +12,20 @@ interface VoiceControlsProps {
   settings: LocalSettings;
   isLoading: boolean;
   onSendMessage: (message: string) => void;
+  isVoiceMode?: boolean;
+  toggleVoiceMode?: () => void;
 }
 
-export function VoiceControls({ 
+export const VoiceControls = forwardRef<{
+  speakText: (text: string, onEnd?: () => void) => void;
+}, VoiceControlsProps>(({ 
   currentMode, 
   settings,
   isLoading,
   onSendMessage,
-}: VoiceControlsProps) {
+  isVoiceMode = false,
+  toggleVoiceMode,
+}, ref) => {
   const [inputText, setInputText] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -94,19 +100,26 @@ export function VoiceControls({
     }
   };
 
-  const speakText = (text: string) => {
-    if (!synthRef.current) return;
+  const speakText = (text: string, onEnd?: () => void) => {
+    if (!synthRef.current) {
+      onEnd?.();
+      return;
+    }
 
     synthRef.current.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = settings.voiceSpeed;
     utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      onEnd?.();
+    };
     
     synthRef.current.speak(utterance);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+
+    const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedInput = inputText.trim();
     if (!trimmedInput || isLoading) return;
@@ -115,27 +128,40 @@ export function VoiceControls({
     setInputText("");
   };
 
+  useImperativeHandle(ref, () => ({
+    speakText,
+  }));
+
+  if (isVoiceMode) {
+    return (
+      <div className="relative flex flex-col items-center justify-center p-8" data-testid="voice-controls-container-focused">
+        <div className="relative w-32 h-32">
+          <div className={`absolute inset-0 rounded-full bg-primary/20 ${isListening || isSpeaking ? 'animate-pulse' : ''}`} />
+          <div className={`absolute inset-4 rounded-full bg-primary/40 ${isListening || isSpeaking ? 'animate-pulse' : ''}`} style={{ animationDelay: '150ms' }} />
+          <div className={`absolute inset-8 rounded-full bg-primary/60 ${isListening || isSpeaking ? 'animate-pulse' : ''}`} style={{ animationDelay: '300ms' }} />
+          <Button
+            type="button"
+            size="icon"
+            variant={isListening ? "default" : "outline"}
+            onClick={toggleListening}
+            className="absolute inset-0 w-full h-full rounded-full transition-all duration-300 ease-in-out transform hover:scale-105 active:scale-95 shadow-lg"
+            disabled={isLoading || isSpeaking}
+            data-testid="button-voice-focused"
+          >
+            {isListening ? <MicOff className="w-12 h-12" /> : <Mic className="w-12 h-12" />}
+          </Button>
+        </div>
+        <span className="text-lg font-medium text-primary mt-6" data-testid="text-voice-status-focused">
+          {isListening ? 'Listening...' : isSpeaking ? 'Speaking...' : (isLoading ? 'Thinking...' : 'Tap to speak')}
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <div className="border-t bg-background" data-testid="voice-controls-container">
+    <div className="border-t bg-background" data-testid="voice-controls-container-default">
       <form onSubmit={handleSubmit} className="px-4 lg:px-8 py-4">
         <div className="max-w-3xl mx-auto relative">
-          {/* Voice visualization when active */}
-          {(isListening || isSpeaking) && (
-            <div className="absolute -top-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2" data-testid="voice-visualization">
-              <div className="relative w-16 h-16">
-                <div className="absolute inset-0 rounded-full bg-primary/20 animate-pulse" />
-                <div className="absolute inset-2 rounded-full bg-primary/40 animate-pulse" style={{ animationDelay: '150ms' }} />
-                <div className="absolute inset-4 rounded-full bg-primary/60 animate-pulse" style={{ animationDelay: '300ms' }} />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Mic className="w-6 h-6 text-primary" />
-                </div>
-              </div>
-              <span className="text-sm font-medium text-primary" data-testid="text-voice-status">
-                {isListening ? 'Listening...' : 'Speaking...'}
-              </span>
-            </div>
-          )}
-
           <div className="flex items-center gap-2">
             <Input
               type="text"
@@ -150,13 +176,13 @@ export function VoiceControls({
             <Button
               type="button"
               size="icon"
-              variant={isListening ? "default" : "ghost"}
-              onClick={toggleListening}
+              variant="ghost"
+              onClick={toggleVoiceMode}
               className="absolute right-14 w-10 h-10 rounded-full"
               disabled={isLoading}
-              data-testid="button-voice"
+              data-testid="button-voice-default"
             >
-              {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+              <Mic className="w-5 h-5" />
             </Button>
 
             <Button
@@ -180,4 +206,4 @@ export function VoiceControls({
       </form>
     </div>
   );
-}
+});
