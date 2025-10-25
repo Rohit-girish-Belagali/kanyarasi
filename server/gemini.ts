@@ -1,9 +1,9 @@
 // DON'T DELETE THIS COMMENT
 // Using Gemini blueprint: gemini-2.5-flash for conversational AI
 
-import { GoogleGenAI } from "@google/genai";
+import * as genai from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+const genAI = new genai.GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 import type { CalendarEvent } from "@shared/schema";
 
@@ -42,12 +42,12 @@ export async function generateChatResponse(options: ChatOptions): Promise<ChatRe
       },
     ];
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const response = await genAI.models.generateContent({
+      model: "gemini-2.0-flash-exp",
       config: {
         systemInstruction,
         temperature: tone === 'formal' ? 0.7 : tone === 'motivational' ? 0.9 : 0.8,
-        maxOutputTokens: 300, // Keep responses under 120 words as specified
+        maxOutputTokens: 300,
       },
       contents,
     });

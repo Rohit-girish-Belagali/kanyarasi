@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { generateChatResponse } from "./gemini";
+import { synthesizeSpeech } from './elevenlabs';
 import { insertMessageSchema, insertCalendarEventSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -137,6 +138,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Update calendar event error:', error);
       res.status(500).json({ error: "Failed to update event" });
+    }
+  });
+
+  // TTS endpoint - POST /api/tts
+  app.post("/api/tts", async (req, res) => {
+    try {
+      const { text } = req.body;
+      if (!text) {
+        return res.status(400).json({ error: 'Text is required' });
+      }
+
+      const audioStream = await synthesizeSpeech(text);
+
+      if (audioStream) {
+        res.setHeader('Content-Type', 'audio/mpeg');
+        audioStream.pipe(res);
+      } else {
+        res.status(500).json({ error: 'Failed to synthesize speech' });
+      }
+    } catch (error) {
+      console.error('TTS error:', error);
+      res.status(500).json({ error: 'Failed to synthesize speech' });
     }
   });
 

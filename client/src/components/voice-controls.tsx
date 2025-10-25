@@ -31,7 +31,6 @@ export const VoiceControls = forwardRef<{
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const recognitionRef = useRef<any>(null);
-  const synthRef = useRef<SpeechSynthesis | null>(null);
   const { toast } = useToast();
 
   // Initialize Web Speech API
@@ -73,16 +72,11 @@ export const VoiceControls = forwardRef<{
         };
       }
 
-      // Initialize Speech Synthesis
-      synthRef.current = window.speechSynthesis;
     }
 
     return () => {
       if (recognitionRef.current) {
         recognitionRef.current.stop();
-      }
-      if (synthRef.current) {
-        synthRef.current.cancel();
       }
     };
   }, [settings.language, toast]);
@@ -107,22 +101,40 @@ export const VoiceControls = forwardRef<{
     }
   };
 
-  const speakText = (text: string, onEnd?: () => void) => {
-    if (!synthRef.current) {
+  const speakText = async (text: string, onEnd?: () => void) => {
+    if (!text.trim()) {
       onEnd?.();
       return;
     }
 
-    synthRef.current.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = settings.voiceSpeed;
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => {
+    setIsSpeaking(true);
+    try {
+      const response = await apiRequest('POST', '/api/tts', { text });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch audio from TTS endpoint.');
+      }
+
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const audioBuffer = await response.arrayBuffer();
+      const decodedAudio = await audioContext.decodeAudioData(audioBuffer);
+
+      const source = audioContext.createBufferSource();
+      source.buffer = decodedAudio;
+      source.connect(audioContext.destination);
+      source.start(0);
+
+      source.onended = () => {
+        setIsSpeaking(false);
+        onEnd?.();
+      };
+
+    } catch (error) {
+      console.error("Speech synthesis error:", error);
+      toast({ title: 'Speech synthesis failed', variant: 'destructive' });
       setIsSpeaking(false);
       onEnd?.();
-    };
-    
-    synthRef.current.speak(utterance);
+    }
   };
 
 
