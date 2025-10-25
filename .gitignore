@@ -8,3 +8,8 @@ vite.config.ts.*
 .env
 .env.*
 .env*.local
+# SQLite database
+data/
+*.db
+*.db-shm
+*.db-wal

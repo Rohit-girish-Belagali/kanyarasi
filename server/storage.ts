@@ -4,13 +4,28 @@ import {
   type CalendarEvent,
   type InsertCalendarEvent,
   type UserPreferences,
-  type InsertUserPreferences
+  type InsertUserPreferences,
+  type User,
+  type InsertUser,
+  users,
+  messages,
+  calendarEvents,
+  userPreferences
 } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
+  // User operations
+  getUsers(): Promise<User[]>;
+  getUserById(id: string): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
+
   // Message operations
   getMessages(): Promise<Message[]>;
+  getMessagesByUserId(userId: string): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
   clearMessages(): Promise<void>;
 
@@ -27,14 +42,40 @@ export interface IStorage {
 }
 
 export class MemStorage implements IStorage {
+  private users: Map<string, User>;
   private messages: Map<string, Message>;
   private calendarEvents: Map<string, CalendarEvent>;
   private userPreferences: UserPreferences | null;
 
   constructor() {
+    this.users = new Map();
     this.messages = new Map();
     this.calendarEvents = new Map();
     this.userPreferences = null;
+  }
+
+  // User operations
+  async getUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
+  }
+
+  async getUserById(id: string): Promise<User | undefined> {
+    return this.users.get(id);
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(u => u.username === username);
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const id = randomUUID();
+    const user: User = {
+      ...insertUser,
+      id,
+      createdAt: new Date(),
+    };
+    this.users.set(id, user);
+    return user;
   }
 
   // Message operations
@@ -42,6 +83,12 @@ export class MemStorage implements IStorage {
     return Array.from(this.messages.values()).sort(
       (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
+  }
+
+  async getMessagesByUserId(userId: string): Promise<Message[]> {
+    return Array.from(this.messages.values())
+      .filter(m => m.userId === userId)
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   }
 
   async createMessage(insertMessage: InsertMessage): Promise<Message> {
@@ -127,4 +174,6 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// Export database storage for production, or use MemStorage for testing
+export { storage } from './db-storage';
+// export const storage = new MemStorage(); // Uncomment for in-memory testing

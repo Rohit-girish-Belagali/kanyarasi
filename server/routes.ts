@@ -3,10 +3,81 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { generateChatResponse } from "./gemini";
 import { synthesizeSpeech } from './elevenlabs';
-import { insertMessageSchema, insertCalendarEventSchema } from "@shared/schema";
+import { insertMessageSchema, insertCalendarEventSchema, insertUserSchema } from "@shared/schema";
+import { createUser, authenticateUser, checkUsernameExists } from "./auth";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Auth endpoints
+  app.post("/api/auth/signup", async (req, res) => {
+    try {
+      const userValidation = insertUserSchema.safeParse(req.body);
+      
+      if (!userValidation.success) {
+        return res.status(400).json({ 
+          error: "Invalid user data",
+          details: userValidation.error.errors
+        });
+      }
+      
+      // Check if username already exists
+      const exists = await checkUsernameExists(userValidation.data.username);
+      if (exists) {
+        return res.status(409).json({ error: "Username already exists" });
+      }
+      
+      const user = await createUser(userValidation.data);
+      
+      // Don't send password back
+      const { password, ...userWithoutPassword } = user;
+      
+      res.json({ user: userWithoutPassword });
+    } catch (error) {
+      console.error("Signup error:", error);
+      res.status(500).json({ error: "Failed to create user" });
+    }
+  });
+  
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      
+      if (!username || !password) {
+        return res.status(400).json({ error: "Username and password required" });
+      }
+      
+      const user = await authenticateUser(username, password);
+      
+      if (!user) {
+        return res.status(401).json({ error: "Invalid username or password" });
+      }
+      
+      // Don't send password back
+      const { password: _, ...userWithoutPassword } = user;
+      
+      res.json({ user: userWithoutPassword });
+    } catch (error) {
+      console.error("Login error:", error);
+      res.status(500).json({ error: "Failed to login" });
+    }
+  });
+  
+  app.post("/api/auth/check-username", async (req, res) => {
+    try {
+      const { username } = req.body;
+      
+      if (!username) {
+        return res.status(400).json({ error: "Username required" });
+      }
+      
+      const exists = await checkUsernameExists(username);
+      res.json({ exists });
+    } catch (error) {
+      console.error("Check username error:", error);
+      res.status(500).json({ error: "Failed to check username" });
+    }
+  });
+
   // Chat endpoint - POST /api/chat
   app.post("/api/chat", async (req, res) => {
     try {
