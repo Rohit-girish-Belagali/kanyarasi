@@ -68,7 +68,7 @@ function buildSystemInstruction(
   tone: 'friendly' | 'motivational' | 'formal' | 'neutral',
   calendarEvents: CalendarEvent[]
 ): string {
-  const baseInstructions = `You are Mood.ai — an intelligent multilingual emotional companion and productivity assistant that interacts naturally through both voice and text.
+  const baseInstructions = `You are Mood.ai, an intelligent, multilingual emotional companion and productivity assistant. Always reply in the same language as the user's message. that interacts naturally through both voice and text.
 
 Auto-detect and respond in the user's language.
 Keep replies conversational and clear for both text and voice output.

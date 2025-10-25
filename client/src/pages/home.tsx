@@ -28,7 +28,10 @@ export default function Home() {
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const voiceControlsRef = useRef<{ speakText: (text: string) => void }>(null);
+  const voiceControlsRef = useRef<{ 
+    speakText: (text: string, onEnd?: () => void) => void; 
+    toggleListening: () => void; 
+  }>(null);
 
   const chatMutation = useMutation({
     mutationFn: (userMessage: string) => {
@@ -56,18 +59,14 @@ export default function Home() {
 
       // Speak the response if auto-voice is on
       if (voiceControlsRef.current && data.message.content) {
-        const onSpeechEnd = () => {
-          if (isVoiceMode) {
-            setIsVoiceMode(false);
-          }
-        };
-
-        if (isVoiceMode || settings.autoVoice) {
-          voiceControlsRef.current.speakText(data.message.content, onSpeechEnd);
-        } else {
-          // If voice mode is off and auto-voice is off, we still need to handle the case where we were in voice mode
-          // and need to exit it, even if we don't speak.
-          onSpeechEnd();
+        if (isVoiceMode) {
+          // In voice mode, speak the response and then immediately start listening again.
+          voiceControlsRef.current.speakText(data.message.content, () => {
+            voiceControlsRef.current?.toggleListening();
+          });
+        } else if (settings.autoVoice) {
+          // When not in voice mode, only speak if auto-voice is enabled.
+          voiceControlsRef.current.speakText(data.message.content);
         }
       }
     },

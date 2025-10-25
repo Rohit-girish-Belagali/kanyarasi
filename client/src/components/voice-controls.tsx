@@ -18,6 +18,7 @@ interface VoiceControlsProps {
 
 export const VoiceControls = forwardRef<{
   speakText: (text: string, onEnd?: () => void) => void;
+  toggleListening: () => void;
 }, VoiceControlsProps>(({ 
   currentMode, 
   settings,
@@ -47,8 +48,14 @@ export const VoiceControls = forwardRef<{
 
         recognitionRef.current.onresult = (event: any) => {
           const transcript = event.results[0][0].transcript;
-          setInputText(transcript);
           setIsListening(false);
+          if (transcript) {
+            if (isVoiceMode) {
+              onSendMessage(transcript);
+            } else {
+              setInputText(transcript);
+            }
+          }
         };
 
         recognitionRef.current.onerror = (event: any) => {
@@ -130,6 +137,7 @@ export const VoiceControls = forwardRef<{
 
   useImperativeHandle(ref, () => ({
     speakText,
+    toggleListening,
   }));
 
   if (isVoiceMode) {
