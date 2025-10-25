@@ -84,6 +84,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: aiMessage,
         detectedMode: response.detectedMode,
         createdTask,
+      res.json({
+        message: aiMessage,
+        detectedMode: response.detectedMode,
       });
     } catch (error) {
       console.error('Chat error:', error);
@@ -117,6 +120,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       const validatedData = insertCalendarEventSchema.parse(processedData);
+      const validatedData = insertCalendarEventSchema.parse(req.body);
       const event = await storage.createCalendarEvent(validatedData);
       res.status(201).json(event);
     } catch (error: any) {
@@ -144,6 +148,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateSchema = insertCalendarEventSchema.partial();
       
       const validationResult = updateSchema.safeParse(processedData);
+      // Validate update data - only allow specific fields
+      const updateSchema = insertCalendarEventSchema.partial();
+      
+      const validationResult = updateSchema.safeParse(req.body);
       
       if (!validationResult.success) {
         return res.status(400).json({ 

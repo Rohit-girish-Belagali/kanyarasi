@@ -54,13 +54,20 @@ export default function Home() {
       // Append the assistant's response to the message list
       setMessages(prev => ({ ...prev, [currentMode]: [...(prev[currentMode] || []), data.message] }));
 
-      // If a task was created, invalidate the calendar query to refresh the task list
+      // If the response indicates a calendar event was added, invalidate the query
+      // Support both older API shape (createdTask) and newer textual cue in message
       if (data.createdTask) {
         queryClient.invalidateQueries({ queryKey: ['calendarEvents'] });
-        toast({ 
-          title: "Task added!", 
-          description: `"${data.createdTask.title}" has been added to your calendar.` 
-        });
+        try {
+          toast({ 
+            title: "Task added!", 
+            description: `"${data.createdTask.title}" has been added to your calendar.` 
+          });
+        } catch (e) {
+          // ignore toast errors
+        }
+      } else if (data.message.content && data.message.content.toLowerCase().includes('added to your calendar')) {
+        queryClient.invalidateQueries({ queryKey: ['calendarEvents'] });
       }
 
       // Speak the response if auto-voice is on
@@ -177,7 +184,7 @@ export default function Home() {
   const handleModeChange = (mode: 'emotional' | 'secretary') => {
     setCurrentMode(mode);
     setShowBanner(true);
-    
+
     // Add a user message only when switching to secretary mode for the first time
     if (mode === 'secretary' && !hasShownSecretaryMessage) {
       const modeMessage: Message = {

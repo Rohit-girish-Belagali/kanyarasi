@@ -56,6 +56,7 @@ export async function generateChatResponse(options: ChatOptions): Promise<ChatRe
         systemInstruction,
         temperature: tone === 'formal' ? 0.7 : tone === 'motivational' ? 0.9 : 0.8,
         maxOutputTokens: 1000,
+        maxOutputTokens: 300,
       },
       contents,
     });
@@ -85,6 +86,9 @@ export async function generateChatResponse(options: ChatOptions): Promise<ChatRe
     return {
       message: messageText,
       taskToCreate,
+
+    return {
+      message: messageText,
     };
   } catch (error) {
     console.error('Gemini API error:', error);
@@ -135,6 +139,7 @@ TASK_CREATE: {"title": "Task Title", "description": "Optional description", "sta
 Priority should be: "low", "medium", or "high"
 If no specific time is mentioned, use today's date with a reasonable time
 If no priority is mentioned, default to "medium"`,
+Offer to add tasks to their calendar when they mention goals or objectives.`,
   };
 
   const calendarContext = calendarEvents.length > 0
