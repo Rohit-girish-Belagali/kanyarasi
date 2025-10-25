@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, isToday, isTomorrow } from "date-fns";
-import { CalendarDays, Plus, Pencil, Trash2, Clock } from "lucide-react";
+import { CalendarDays, Plus, Pencil, Trash2, Clock, ChevronRight, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +41,7 @@ export function CalendarSidebar({ currentMode }: CalendarSidebarProps) {
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const { toast } = useToast();
 
   const { data: events = [], isLoading } = useQuery<CalendarEvent[]>({ 
@@ -180,11 +181,22 @@ export function CalendarSidebar({ currentMode }: CalendarSidebarProps) {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="px-6 py-8 border-b">
-        <h2 className="text-2xl font-serif font-medium mb-4">Your Goals & Tasks</h2>
+      <div className="px-6 py-6" style={{ borderBottom: '1px solid #D7B8A8' }}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-serif font-medium">Tasks</h2>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="w-8 h-8"
+          >
+            {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          </Button>
+        </div>
         <Button 
           onClick={handleAddEvent} 
           className="w-full gap-2"
+          style={{ backgroundColor: '#C67B5C', backdropFilter: 'blur(14px)', color: '#ffffff' }}
           data-testid="button-add-task"
         >
           <Plus className="w-4 h-4" />
@@ -193,7 +205,8 @@ export function CalendarSidebar({ currentMode }: CalendarSidebarProps) {
       </div>
 
       {/* Events List */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      {!isCollapsed && (
+        <div className="flex-1 overflow-y-auto px-6 py-4">
         {sortedEvents.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-12">
             <CalendarDays className="w-12 h-12 opacity-20 mb-4" />
@@ -268,7 +281,8 @@ export function CalendarSidebar({ currentMode }: CalendarSidebarProps) {
             ))}
           </div>
         )}
-      </div>
+        </div>
+      )}
 
       {/* Event Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>

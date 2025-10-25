@@ -179,8 +179,8 @@ export const VoiceControls = forwardRef<{
   }
 
   return (
-    <div className="border-t bg-background" data-testid="voice-controls-container-default">
-      <form onSubmit={handleSubmit} className="px-4 lg:px-8 py-4">
+    <div className="relative z-20" style={{ marginBottom: '25px', backgroundColor: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(14px)' }} data-testid="voice-controls-container-default">
+      <form onSubmit={handleSubmit} className="px-8 py-4">
         <div className="max-w-3xl mx-auto relative">
           <div className="flex items-center gap-2">
             <Input
@@ -208,8 +208,8 @@ export const VoiceControls = forwardRef<{
             <Button
               type="submit"
               size="icon"
-              variant="default"
               className="absolute right-2 w-10 h-10 rounded-full"
+              style={{ backgroundColor: '#000000', color: '#ffffff' }}
               disabled={!inputText.trim() || isLoading || isListening}
               data-testid="button-send"
             >
@@ -219,7 +219,7 @@ export const VoiceControls = forwardRef<{
 
           {isLoading && (
             <div className="mt-2 text-center" data-testid="text-thinking">
-              <span className="text-sm text-muted-foreground">Thinking...</span>
+              <span className="text-sm text-white">Thinking...</span>
             </div>
           )}
         </div>
