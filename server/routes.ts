@@ -70,6 +70,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mode: response.detectedMode || mode,
       });
 
+      // If AI detected a task to create, add it to the calendar
+      let createdTask = null;
+      if (response.taskToCreate) {
+        try {
+          createdTask = await storage.createCalendarEvent(response.taskToCreate);
+        } catch (error) {
+          console.error('Failed to create task:', error);
+        }
+      }
+
+      res.json({
+        message: aiMessage,
+        detectedMode: response.detectedMode,
+        createdTask,
       res.json({
         message: aiMessage,
         detectedMode: response.detectedMode,
@@ -98,6 +112,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // POST /api/calendar - Create new calendar event
   app.post("/api/calendar", async (req, res) => {
     try {
+      // Convert string dates to Date objects before validation
+      const processedData = {
+        ...req.body,
+        startTime: req.body.startTime ? new Date(req.body.startTime) : undefined,
+        endTime: req.body.endTime ? new Date(req.body.endTime) : undefined,
+      };
+      
+      const validatedData = insertCalendarEventSchema.parse(processedData);
       const validatedData = insertCalendarEventSchema.parse(req.body);
       const event = await storage.createCalendarEvent(validatedData);
       res.status(201).json(event);
@@ -115,6 +137,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
+      // Convert string dates to Date objects before validation
+      const processedData = {
+        ...req.body,
+        startTime: req.body.startTime ? new Date(req.body.startTime) : undefined,
+        endTime: req.body.endTime ? new Date(req.body.endTime) : undefined,
+      };
+      
+      // Validate update data - only allow specific fields
+      const updateSchema = insertCalendarEventSchema.partial();
+      
+      const validationResult = updateSchema.safeParse(processedData);
       // Validate update data - only allow specific fields
       const updateSchema = insertCalendarEventSchema.partial();
       

@@ -18,6 +18,8 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false);
   const [showBanner, setShowBanner] = useState(true);
   const [isVoiceMode, setIsVoiceMode] = useState(false);
+  const [hasShownInitialMessage, setHasShownInitialMessage] = useState(false);
+  const [hasShownSecretaryMessage, setHasShownSecretaryMessage] = useState(false);
   const [settings, setSettings] = useState<LocalSettings>({
     tone: 'friendly',
     autoVoice: false,
@@ -40,7 +42,7 @@ export default function Home() {
         mode: currentMode,
         tone: settings.tone,
         conversationHistory: (messages[currentMode] || []).slice(-5).map(({ role, content }) => ({ role, content }))
-      }).then(res => res.json() as Promise<{ message: Message }>);
+      }).then(res => res.json() as Promise<{ message: Message; createdTask?: any }>);
     },
     onSuccess: (data, variables) => {
       if (!data || !data.message) {
@@ -53,7 +55,18 @@ export default function Home() {
       setMessages(prev => ({ ...prev, [currentMode]: [...(prev[currentMode] || []), data.message] }));
 
       // If the response indicates a calendar event was added, invalidate the query
-      if (data.message.content.toLowerCase().includes('added to your calendar')) {
+      // Support both older API shape (createdTask) and newer textual cue in message
+      if (data.createdTask) {
+        queryClient.invalidateQueries({ queryKey: ['calendarEvents'] });
+        try {
+          toast({ 
+            title: "Task added!", 
+            description: `"${data.createdTask.title}" has been added to your calendar.` 
+          });
+        } catch (e) {
+          // ignore toast errors
+        }
+      } else if (data.message.content && data.message.content.toLowerCase().includes('added to your calendar')) {
         queryClient.invalidateQueries({ queryKey: ['calendarEvents'] });
       }
 
@@ -139,6 +152,21 @@ export default function Home() {
     }
   }, []);
 
+  // Add initial message when component first loads
+  useEffect(() => {
+    if (!hasShownInitialMessage && messages.emotional.length === 0) {
+      const initialMessage: Message = {
+        id: `initial-${Date.now()}`,
+        role: 'user',
+        content: 'Welcome to Emotional Support mode - I\'m here to listen and provide comfort',
+        mode: 'emotional',
+        timestamp: new Date(),
+      };
+      setMessages(prev => ({ ...prev, emotional: [initialMessage] }));
+      setHasShownInitialMessage(true);
+    }
+  }, [hasShownInitialMessage, messages.emotional.length]);
+
   // Save to localStorage when data changes
   useEffect(() => {
     localStorage.setItem('moodai-messages-emotional', JSON.stringify(messages.emotional));
@@ -156,6 +184,19 @@ export default function Home() {
   const handleModeChange = (mode: 'emotional' | 'secretary') => {
     setCurrentMode(mode);
     setShowBanner(true);
+
+    // Add a user message only when switching to secretary mode for the first time
+    if (mode === 'secretary' && !hasShownSecretaryMessage) {
+      const modeMessage: Message = {
+        id: `secretary-first-${Date.now()}`,
+        role: 'user',
+        content: 'Welcome to Secretary mode - Let\'s organize your day and manage your tasks',
+        mode: mode,
+        timestamp: new Date(),
+      };
+      setMessages(prev => ({ ...prev, [mode]: [...(prev[mode] || []), modeMessage] }));
+      setHasShownSecretaryMessage(true);
+    }
   };
 
   const handleSettingsChange = (newSettings: Partial<LocalSettings>) => {

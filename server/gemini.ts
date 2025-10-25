@@ -18,6 +18,14 @@ interface ChatOptions {
 interface ChatResponse {
   message: string;
   detectedMode?: 'emotional' | 'secretary';
+  taskToCreate?: {
+    title: string;
+    description?: string;
+    startTime?: string;
+    endTime?: string;
+    priority: 'low' | 'medium' | 'high';
+    category?: string;
+  };
 }
 
 export async function generateChatResponse(options: ChatOptions): Promise<ChatResponse> {
@@ -47,12 +55,37 @@ export async function generateChatResponse(options: ChatOptions): Promise<ChatRe
       config: {
         systemInstruction,
         temperature: tone === 'formal' ? 0.7 : tone === 'motivational' ? 0.9 : 0.8,
+        maxOutputTokens: 1000,
         maxOutputTokens: 300,
       },
       contents,
     });
 
     const messageText = response.text || "I'm here to help. How can I assist you today?";
+    
+    // Check if the response contains task creation data
+    const taskCreateMatch = messageText.match(/TASK_CREATE:\s*({.*?})/);
+    let taskToCreate = undefined;
+    
+    if (taskCreateMatch) {
+      try {
+        const taskData = JSON.parse(taskCreateMatch[1]);
+        taskToCreate = {
+          title: taskData.title,
+          description: taskData.description || null,
+          startTime: taskData.startTime || new Date().toISOString(),
+          endTime: taskData.endTime || null,
+          priority: taskData.priority || 'medium',
+          category: taskData.category || null,
+        };
+      } catch (error) {
+        console.error('Failed to parse task creation data:', error);
+      }
+    }
+
+    return {
+      message: messageText,
+      taskToCreate,
 
     return {
       message: messageText,
@@ -95,6 +128,17 @@ Create, update, and retrieve tasks or goals from the user's calendar.
 Suggest structured daily plans or weekly routines.
 Speak in a concise, professional, and motivating tone.
 When discussing plans, clearly mention the time, duration, and priority of tasks.
+
+TASK CREATION DETECTION:
+When the user mentions wanting to add, create, schedule, or plan a task/goal/event, automatically detect this and respond with a structured task creation.
+Look for phrases like: "I need to", "I should", "remind me to", "schedule", "add to my calendar", "plan to", "set a task", etc.
+
+If you detect a task creation request, respond with your normal message AND include a JSON object with the task details in this exact format:
+TASK_CREATE: {"title": "Task Title", "description": "Optional description", "startTime": "YYYY-MM-DDTHH:mm", "endTime": "YYYY-MM-DDTHH:mm", "priority": "medium", "category": "Optional category"}
+
+Priority should be: "low", "medium", or "high"
+If no specific time is mentioned, use today's date with a reasonable time
+If no priority is mentioned, default to "medium"`,
 Offer to add tasks to their calendar when they mention goals or objectives.`,
   };
 
