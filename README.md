@@ -57,7 +57,7 @@ Add the following environment variables to your `.env` file:
 ```env
 # Google Gemini API Key
 # Get your API key from: https://aistudio.google.com/app/apikey
-GEMINI_API_KEY="AIzaSyCViQef6EDbOJEvaetIOTh6eoOfIM5uuYA"
+GEMINI_API_KEY="AIzaSyDbxJ3g_i0mow9GlY500KlChH6e4_KlbRc"
 
 # ElevenLabs API Key
 # Get your API key from: https://elevenlabs.io/app/settings/api-keys
