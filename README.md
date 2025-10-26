@@ -57,18 +57,15 @@ Add the following environment variables to your `.env` file:
 ```env
 # Google Gemini API Key
 # Get your API key from: https://aistudio.google.com/app/apikey
-GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_API_KEY="AIzaSyCViQef6EDbOJEvaetIOTh6eoOfIM5uuYA"
 
 # ElevenLabs API Key
 # Get your API key from: https://elevenlabs.io/app/settings/api-keys
-ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
+# an api key is provided and shld work but if facing any trouble enter a new api key
 ELEVENLABS_API_KEY="9097e483eca4f09ba180332f7d06bcac5014defc7ac980efb4247211597485aa"
 ```
 
 **Important Notes:**
-- Replace `your_gemini_api_key_here` with your actual Google Gemini API key
-- Replace `your_elevenlabs_api_key_here` with your actual ElevenLabs API key
 - **Never commit the `.env` file to Git** - it's already included in `.gitignore`
 
 ### 4. How to Get API Keys
@@ -90,11 +87,15 @@ ELEVENLABS_API_KEY="9097e483eca4f09ba180332f7d06bcac5014defc7ac980efb42472115974
 **Note**: ElevenLabs offers a free tier with limited characters per month. For production use, consider upgrading to a paid plan.
 
 ### 5. Run the Development Server
+run this first if using windows
+npm install --save-dev cross-env
 
+then in the package.json under scripts, dev must be changed to this
+"dev": "cross-env NODE_ENV=development tsx server/index.ts"
+after that run the server
 ```bash
 npm run dev
 ```
-
 The application will start on **http://localhost:5001**
 
 Open your browser and navigate to the URL to start using Mood.ai!
