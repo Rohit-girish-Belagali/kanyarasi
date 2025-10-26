@@ -73,8 +73,8 @@ export async function generateChatResponse(options: ChatOptions): Promise<ChatRe
         taskToCreate = {
           title: taskData.title,
           description: taskData.description || null,
-          startTime: taskData.startTime || new Date().toISOString(),
-          endTime: taskData.endTime || null,
+          startTime: new Date(taskData.startTime || new Date()),
+          endTime: taskData.endTime ? new Date(taskData.endTime) : null,
           priority: taskData.priority || 'medium',
           category: taskData.category || null,
         };

@@ -81,8 +81,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Chat endpoint - POST /api/chat
   app.post("/api/chat", async (req, res) => {
     try {
+      // Create or get default user for chat functionality
+      // TODO: Implement proper user session management
+      let defaultUser = await storage.getUserByUsername("default-chat-user");
+      if (!defaultUser) {
+        defaultUser = await storage.createUser({
+          username: "default-chat-user",
+          password: "default-password", // This is just for the default user
+          name: "Default Chat User",
+        });
+      }
+      const defaultUserId = defaultUser.id;
+      
       // Validate message content and mode
       const messageValidation = insertMessageSchema.safeParse({
+        userId: defaultUserId,
         role: 'user',
         content: req.body.content,
         mode: req.body.mode,
@@ -105,11 +118,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const { content, mode } = messageValidation.data;
+      const { content, mode, userId } = messageValidation.data;
       const tone = toneValidation.data;
 
       // Save user message to storage FIRST
       await storage.createMessage({
+        userId,
         role: 'user',
         content,
         mode,
@@ -136,6 +150,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Save AI response to storage
       const aiMessage = await storage.createMessage({
+        userId,
         role: 'assistant',
         content: response.message,
         mode: response.detectedMode || mode,
