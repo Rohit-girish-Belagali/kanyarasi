@@ -125,6 +125,13 @@ export function AuthDialog({ onLogin, onClose }: AuthDialogProps) {
             >
               No, create new account
             </Button>
+            <Button
+              onClick={onClose}
+              variant="outline"
+              className="w-full text-gray-900 border-gray-300"
+            >
+              Continue as Guest
+            </Button>
           </div>
         )}
 

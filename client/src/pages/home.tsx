@@ -104,6 +104,7 @@ export default function Home() {
   const handleSendMessage = (text: string) => {
     const userMsg: Message = {
       id: `user-${Date.now()}`,
+      userId: currentUser?.id || 'guest-user',
       role: 'user',
       content: text,
       mode: currentMode,
@@ -113,7 +114,7 @@ export default function Home() {
     chatMutation.mutate(text);
   };
 
-  // Check for logged-in user on mount
+  // Check for logged-in user on mount - now optional
   useEffect(() => {
     const savedUser = localStorage.getItem('moodai-user');
     if (savedUser) {
@@ -121,18 +122,15 @@ export default function Home() {
         setCurrentUser(JSON.parse(savedUser));
       } catch (e) {
         console.error('Failed to load user:', e);
-        setShowAuthDialog(true);
+        // Don't force auth dialog, just continue as guest
       }
-    } else {
-      setShowAuthDialog(true);
     }
+    // No longer force authentication - allow guest access
   }, []);
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount - works for both logged in users and guests
   useEffect(() => {
-    if (!currentUser) return;
-    
-    const userKey = `moodai-user-${currentUser.id}`;
+    const userKey = currentUser ? `moodai-user-${currentUser.id}` : 'guest-user';
     const savedEmotionalMessages = localStorage.getItem(`${userKey}-messages-emotional`);
     const savedSecretaryMessages = localStorage.getItem(`${userKey}-messages-secretary`);
     const savedSettings = localStorage.getItem(`${userKey}-settings`);
@@ -178,6 +176,7 @@ export default function Home() {
     if (!hasShownInitialMessage && messages.emotional.length === 0) {
       const initialMessage: Message = {
         id: `initial-${Date.now()}`,
+        userId: currentUser?.id || 'guest-user',
         role: 'user',
         content: 'Welcome to Emotional Support mode - I\'m here to listen and provide comfort',
         mode: 'emotional',
@@ -186,25 +185,22 @@ export default function Home() {
       setMessages(prev => ({ ...prev, emotional: [initialMessage] }));
       setHasShownInitialMessage(true);
     }
-  }, [hasShownInitialMessage, messages.emotional.length]);
+  }, [hasShownInitialMessage, messages.emotional.length, currentUser]);
 
-  // Save to localStorage when data changes
+  // Save to localStorage when data changes - works for both logged in users and guests
   useEffect(() => {
-    if (!currentUser) return;
-    const userKey = `moodai-user-${currentUser.id}`;
+    const userKey = currentUser ? `moodai-user-${currentUser.id}` : 'guest-user';
     localStorage.setItem(`${userKey}-messages-emotional`, JSON.stringify(messages.emotional));
     localStorage.setItem(`${userKey}-messages-secretary`, JSON.stringify(messages.secretary));
   }, [messages, currentUser]);
 
   useEffect(() => {
-    if (!currentUser) return;
-    const userKey = `moodai-user-${currentUser.id}`;
+    const userKey = currentUser ? `moodai-user-${currentUser.id}` : 'guest-user';
     localStorage.setItem(`${userKey}-settings`, JSON.stringify(settings));
   }, [settings, currentUser]);
 
   useEffect(() => {
-    if (!currentUser) return;
-    const userKey = `moodai-user-${currentUser.id}`;
+    const userKey = currentUser ? `moodai-user-${currentUser.id}` : 'guest-user';
     localStorage.setItem(`${userKey}-mode`, currentMode);
   }, [currentMode, currentUser]);
 
@@ -237,6 +233,7 @@ export default function Home() {
     if (mode === 'secretary' && !hasShownSecretaryMessage) {
       const modeMessage: Message = {
         id: `secretary-first-${Date.now()}`,
+        userId: currentUser?.id || 'guest-user',
         role: 'user',
         content: 'Welcome to Secretary mode - Let\'s organize your day and manage your tasks',
         mode: mode,
@@ -290,6 +287,15 @@ export default function Home() {
             <PlusSquare className="w-5 h-5 text-gray-900" />
           </Button>
           <ModeToggle currentMode={currentMode} onModeChange={handleModeChange} />
+          {!currentUser && (
+            <Button
+              onClick={() => setShowAuthDialog(true)}
+              className="text-gray-900"
+              style={{ backgroundColor: '#FABA85' }}
+            >
+              Login
+            </Button>
+          )}
         </div>
       </header>
 
@@ -346,15 +352,27 @@ export default function Home() {
               >
                 <SettingsIcon className="w-4 h-4 text-gray-900" />
               </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={handleLogout}
-                className="h-8 w-8 hover:bg-black/10"
-                title="Logout"
-              >
-                <LogOut className="w-4 h-4 text-gray-900" />
-              </Button>
+              {currentUser ? (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={handleLogout}
+                  className="h-8 w-8 hover:bg-black/10"
+                  title="Logout"
+                >
+                  <LogOut className="w-4 h-4 text-gray-900" />
+                </Button>
+              ) : (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setShowAuthDialog(true)}
+                  className="h-8 w-8 hover:bg-black/10"
+                  title="Login"
+                >
+                  <LogOut className="w-4 h-4 text-gray-900" />
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -445,21 +463,13 @@ export default function Home() {
         </div>
       )}
 
-      {/* Auth Dialog */}
+      {/* Auth Dialog - now optional */}
       {showAuthDialog && (
         <AuthDialog
           onLogin={handleLogin}
           onClose={() => {
-            // Don't allow closing without logging in
-            if (!currentUser) {
-              toast({
-                title: "Login required",
-                description: "Please login or create an account to continue",
-                variant: "destructive",
-              });
-            } else {
-              setShowAuthDialog(false);
-            }
+            // Allow closing without logging in - user can continue as guest
+            setShowAuthDialog(false);
           }}
         />
       )}
