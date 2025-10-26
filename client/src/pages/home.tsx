@@ -406,7 +406,7 @@ export default function Home() {
         </div>
 
         {/* Right Sidebar - Calendar (hidden on mobile) */}
-        <div className="hidden xl:flex xl:w-80 overflow-auto">
+        <div className="hidden xl:flex xl:w-80 overflow-auto rounded-3xl">
           <CalendarSidebar currentMode={currentMode} />
         </div>
       </div>

@@ -33,6 +33,20 @@ export const VoiceControls = forwardRef<{
   const recognitionRef = useRef<any>(null);
   const { toast } = useToast();
 
+  // Auto-start listening when voice mode opens
+  useEffect(() => {
+    if (isVoiceMode && recognitionRef.current && !isListening && !isSpeaking) {
+      setTimeout(() => {
+        try {
+          recognitionRef.current.start();
+          setIsListening(true);
+        } catch (error) {
+          console.error('Failed to start recognition:', error);
+        }
+      }, 300);
+    }
+  }, [isVoiceMode]);
+
   // Initialize Web Speech API
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -154,32 +168,57 @@ export const VoiceControls = forwardRef<{
 
   if (isVoiceMode) {
     return (
-      <div className="relative flex flex-col items-center justify-center p-8" data-testid="voice-controls-container-focused">
-        <div className="relative w-32 h-32">
-          <div className={`absolute inset-0 rounded-full bg-primary/20 ${isListening || isSpeaking ? 'animate-pulse' : ''}`} />
-          <div className={`absolute inset-4 rounded-full bg-primary/40 ${isListening || isSpeaking ? 'animate-pulse' : ''}`} style={{ animationDelay: '150ms' }} />
-          <div className={`absolute inset-8 rounded-full bg-primary/60 ${isListening || isSpeaking ? 'animate-pulse' : ''}`} style={{ animationDelay: '300ms' }} />
+      <div className="relative flex flex-col items-center justify-center p-8" style={{ backgroundColor: 'rgba(250, 186, 133, 0.3)', minHeight: '400px' }} data-testid="voice-controls-container-focused">
+        <div className="relative w-40 h-40">
+          {/* Animated rings with white/light colors for contrast */}
+          <div 
+            className={`absolute inset-0 rounded-full ${isListening || isSpeaking || isLoading ? 'animate-ping' : ''}`} 
+            style={{ 
+              backgroundColor: 'rgba(255, 255, 255, 0.3)',
+              animationDuration: '1.5s'
+            }} 
+          />
+          <div 
+            className={`absolute inset-2 rounded-full ${isListening || isSpeaking || isLoading ? 'animate-pulse' : ''}`} 
+            style={{ 
+              backgroundColor: 'rgba(255, 255, 255, 0.5)',
+              animationDelay: '150ms',
+              animationDuration: '1.5s'
+            }} 
+          />
+          <div 
+            className={`absolute inset-6 rounded-full ${isListening || isSpeaking || isLoading ? 'animate-pulse' : ''}`} 
+            style={{ 
+              backgroundColor: 'rgba(255, 255, 255, 0.7)',
+              animationDelay: '300ms',
+              animationDuration: '1.5s'
+            }} 
+          />
           <Button
             type="button"
             size="icon"
-            variant={isListening ? "default" : "outline"}
             onClick={toggleListening}
-            className="absolute inset-0 w-full h-full rounded-full transition-all duration-300 ease-in-out transform hover:scale-105 active:scale-95 shadow-lg"
+            className="absolute inset-0 w-full h-full rounded-full transition-all duration-300 ease-in-out transform hover:scale-110 active:scale-95 shadow-2xl border-4"
+            style={{ 
+              backgroundColor: isListening ? '#D2691E' : '#8B4513',
+              borderColor: '#D2691E',
+              color: '#ffffff'
+            }}
             disabled={isLoading || isSpeaking}
             data-testid="button-voice-focused"
           >
             {isListening ? <MicOff className="w-12 h-12" /> : <Mic className="w-12 h-12" />}
           </Button>
         </div>
-        <span className="text-lg font-medium text-primary mt-6" data-testid="text-voice-status-focused">
-          {isListening ? 'Listening...' : isSpeaking ? 'Speaking...' : (isLoading ? 'Thinking...' : 'Tap to speak')}
+        <span className="text-xl font-semibold mt-8" style={{ color: '#8B4513' }} data-testid="text-voice-status-focused">
+          {isListening ? '🎤 Listening...' : isSpeaking ? '🔊 Speaking...' : (isLoading ? '💭 Thinking...' : '')}
         </span>
       </div>
     );
   }
 
   return (
-    <div className="relative z-20" style={{ marginBottom: '25px', backgroundColor: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(14px)' }} data-testid="voice-controls-container-default">
+    <div className="relative z-20" style={{ marginBottom: '25px' }} data-testid="voice-controls-container-default">
       <form onSubmit={handleSubmit} className="px-8 py-4">
         <div className="max-w-3xl mx-auto relative">
           <div className="flex items-center gap-2">
@@ -197,7 +236,16 @@ export const VoiceControls = forwardRef<{
               type="button"
               size="icon"
               variant="ghost"
-              onClick={toggleVoiceMode}
+              onClick={() => {
+                toggleVoiceMode?.();
+                // Start listening immediately after opening voice mode
+                setTimeout(() => {
+                  if (recognitionRef.current && !isListening) {
+                    recognitionRef.current.start();
+                    setIsListening(true);
+                  }
+                }, 100);
+              }}
               className="absolute right-14 w-10 h-10 rounded-full"
               disabled={isLoading}
               data-testid="button-voice-default"

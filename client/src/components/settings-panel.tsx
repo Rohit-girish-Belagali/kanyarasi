@@ -16,9 +16,9 @@ interface SettingsPanelProps {
 export function SettingsPanel({ open, onClose, settings, onSettingsChange }: SettingsPanelProps) {
   return (
     <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent className="w-80 sm:w-96" data-testid="panel-settings">
+      <SheetContent className="w-80 sm:w-96" style={{ backgroundColor: 'rgba(250, 186, 133, 0.95)', backdropFilter: 'blur(14px)' }} data-testid="panel-settings">
         <SheetHeader>
-          <SheetTitle className="text-2xl font-serif">Settings</SheetTitle>
+          <SheetTitle className="text-2xl font-serif text-gray-900">Settings</SheetTitle>
         </SheetHeader>
 
         <div className="space-y-6 mt-8">

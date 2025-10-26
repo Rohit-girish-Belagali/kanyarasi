@@ -179,7 +179,7 @@ export function CalendarSidebar({ currentMode }: CalendarSidebarProps) {
   );
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col" style={{ backgroundColor: 'rgba(250, 186, 133, 0.7)', backdropFilter: 'blur(14px)' }}>
       {/* Header */}
       <div className="px-6 py-6" style={{ borderBottom: '1px solid #D7B8A8' }}>
         <div className="flex items-center justify-between mb-4">
@@ -415,7 +415,7 @@ export function CalendarSidebar({ currentMode }: CalendarSidebarProps) {
                 <Button type="button" variant="ghost" onClick={() => setShowDialog(false)} data-testid="button-cancel-event">
                   Cancel
                 </Button>
-                <Button type="submit" data-testid="button-save-event">
+                <Button type="submit" style={{ backgroundColor: '#C67B5C', color: '#ffffff' }} data-testid="button-save-event">
                   {editingEvent ? 'Update' : 'Add'} Event
                 </Button>
               </DialogFooter>
